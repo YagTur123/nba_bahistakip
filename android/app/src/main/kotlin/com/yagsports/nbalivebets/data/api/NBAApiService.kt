@@ -32,6 +32,7 @@ data class Game(
     val awayScore: Int get() = awayTeam.score
     val homeTeamName: String get() = homeTeam.teamTricode.ifBlank { homeTeam.teamName }
     val awayTeamName: String get() = awayTeam.teamTricode.ifBlank { awayTeam.teamName }
+    val quarterStatus: String get() = gameStatusText
 }
 
 data class Team(
