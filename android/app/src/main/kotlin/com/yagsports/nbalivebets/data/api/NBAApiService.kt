@@ -1,18 +1,12 @@
 package com.yagsports.nbalivebets.data.api
 
-import retrofit2.http.GET
-import retrofit2.http.Path
-
-interface NBAApiService {
-    @GET("statsSampleURL")
-    suspend fun getScoreboard(): ScoreBoardResponse
-
-    @GET("liveAPI/nba/static/data/json/cms/2024/nba/scoreboard/{date}/games_{date}_{hour}00.json")
-    suspend fun getGamesByDate(
-        @Path("date") date: String,
-        @Path("hour") hour: String
-    ): ScoreBoardResponse
-}
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
+import okhttp3.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 data class ScoreBoardResponse(
     val scoreboard: Scoreboard
@@ -26,23 +20,28 @@ data class Game(
     val gameId: String,
     val gameStatus: Int,
     val gameStatusText: String,
+    val gameClock: String? = null,
+    val period: Int? = null,
     val awayTeam: Team,
     val homeTeam: Team
-)
+) {
+    val id: String get() = gameId
+}
 
 data class Team(
     val teamId: Int,
     val teamName: String,
     val teamTricode: String,
     val score: Int,
-    val players: List<Player>
+    val players: List<Player> = emptyList()
 )
 
 data class Player(
     val personId: Int,
     val name: String,
-    val jerseyNum: Int?,
-    val statistics: Statistics
+    val jerseyNum: String?,
+    val position: String?,
+    val statistics: Statistics?
 )
 
 data class Statistics(
@@ -62,3 +61,47 @@ data class Statistics(
     val turnovers: Int = 0,
     val foulsPersonal: Int = 0
 )
+
+data class BoxScoreResponse(
+    val game: BoxScoreGame
+)
+
+data class BoxScoreGame(
+    val gameId: String,
+    val gameStatus: Int,
+    val gameStatusText: String,
+    val awayTeam: Team,
+    val homeTeam: Team
+)
+
+object NBAApiClient {
+    private const val BASE_URL = "https://cdn.nba.com/"
+
+    private val gson: Gson = GsonBuilder().create()
+
+    private val httpClient: OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val originalRequest = chain.request()
+            val modifiedRequest = originalRequest.newBuilder()
+                .header("User-Agent", "Mozilla/5.0")
+                .build()
+            chain.proceed(modifiedRequest)
+        }
+        .build()
+
+    private val retrofit: Retrofit = Retrofit.Builder()
+        .baseUrl(BASE_URL)
+        .client(httpClient)
+        .addConverterFactory(GsonConverterFactory.create(gson))
+        .build()
+
+    val api: NBAApi = retrofit.create(NBAApi::class.java)
+}
+
+interface NBAApi {
+    @GET("static/json/liveData/scoreboard/todaysScoreboard_00.json")
+    suspend fun getScoreboard(): ScoreBoardResponse
+
+    @GET("static/json/liveData/boxscore/boxscore_{gameId}.json")
+    suspend fun getBoxScore(@Path("gameId") gameId: String): BoxScoreResponse
+}
