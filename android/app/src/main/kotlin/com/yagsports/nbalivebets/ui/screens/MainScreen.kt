@@ -3,13 +3,17 @@ package com.yagsports.nbalivebets.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.yagsports.nbalivebets.data.api.Game
@@ -27,11 +30,13 @@ import com.yagsports.nbalivebets.data.models.BetEntity
 import com.yagsports.nbalivebets.data.repository.BetRepository
 import com.yagsports.nbalivebets.ui.viewmodel.MainViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val games by viewModel.games.collectAsState()
     val bets by viewModel.bets.collectAsState()
     val selectedGameId by viewModel.selectedGameId.collectAsState()
+    val selectedGamePlayers by viewModel.selectedGamePlayers.collectAsState()
     val delaySeconds by viewModel.delaySeconds.collectAsState()
 
     var showAddBetDialog by remember { mutableStateOf(false) }
@@ -44,6 +49,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             color = Color(0xFF121212)
         ) {
             Scaffold(
+                containerColor = Color(0xFF121212),
                 topBar = {
                     TopBar(
                         delaySeconds = delaySeconds,
@@ -54,8 +60,8 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 floatingActionButton = {
                     FloatingActionButton(
                         onClick = { showAddBetDialog = true },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+                        containerColor = Color(0xFF00B4D8),
+                        contentColor = Color.White
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Bahis Ekle")
                     }
@@ -69,21 +75,30 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 ) {
                     // Canlı Maçlar Bandı
                     Text(
-                        text = "🏀 Canlı Maçlar",
+                        text = "🏀 Canlı & Yaklaşan Maçlar",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = Color.White,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(games) { game ->
-                            GameCard(
-                                game = game,
-                                isSelected = selectedGameId == game.id,
-                                onClick = { viewModel.selectGame(game.id) }
-                            )
+                    if (games.isEmpty()) {
+                        Text(
+                            text = "Maç verileri yükleniyor...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF888888),
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        )
+                    } else {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(games) { game ->
+                                GameCard(
+                                    game = game,
+                                    isSelected = selectedGameId == game.id,
+                                    onClick = { viewModel.selectGame(game.id) }
+                                )
+                            }
                         }
                     }
 
@@ -91,19 +106,36 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
 
                     // Aktif Bahisler
                     Text(
-                        text = "📊 Aktif Takipteki Bahisler",
+                        text = "📊 Takipteki Kuponlar / Oyuncular",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = Color.White,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(bets) { bet ->
-                            BetCard(
-                                bet = bet,
-                                onRemove = { viewModel.removeBet(bet.id) }
+                    if (bets.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Henüz takipte kupon yok.\nSağ alttaki '+' butonundan oyuncu baremi ekleyin.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF888888),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(bets, key = { it.id }) { bet ->
+                                BetCard(
+                                    bet = bet,
+                                    onRemove = { viewModel.removeBet(bet.id) }
+                                )
+                            }
                         }
                     }
                 }
@@ -114,19 +146,19 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     if (showAddBetDialog) {
         AddBetDialog(
             games = games,
-            players = emptyList(), // ViewModel'den gelecek
-            onGameSelected = { /* handled in dialog */ },
+            players = selectedGamePlayers,
+            onGameSelected = { viewModel.selectGame(it.id) },
             onDismiss = { showAddBetDialog = false },
-            onAdd = { gameId, playerId, pName, pTeam, jersey, stat, target, type ->
+            onAdd = { gId, pId, pName, pTeam, jersey, stat, target, type ->
                 viewModel.addBet(
-                    gameId = gameId,
-                    playerId = playerId,
+                    gameId = gId,
+                    playerId = pId,
                     playerName = pName,
                     playerTeam = pTeam,
-                    jersey = jersey,
-                    stat = stat,
+                    jerseyNumber = jersey,
+                    statDisplay = stat,
                     target = target,
-                    type = type
+                    betType = type
                 )
                 showAddBetDialog = false
             }
@@ -134,6 +166,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopBar(
     delaySeconds: Int,
@@ -164,12 +197,12 @@ fun TopBar(
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.padding(start = 8.dp)
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp)
             ) {
                 Text(
                     text = "Gecikme:",
-                    style = MaterialTheme.typography.bodySmall.copy(color = Color.White)
+                    style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFAAAAAA))
                 )
                 IconButton(onClick = { if (delaySeconds > 0) onDelayChange(delaySeconds - 5) }) {
                     Icon(
@@ -179,8 +212,11 @@ fun TopBar(
                     )
                 }
                 Text(
-                    text = "$delaySeconds sn",
-                    style = MaterialTheme.typography.bodySmall.copy(color = Color.Cyan)
+                    text = "${delaySeconds}s",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color(0xFF00B4D8),
+                        fontWeight = FontWeight.Bold
+                    )
                 )
                 IconButton(onClick = { if (delaySeconds < 60) onDelayChange(delaySeconds + 5) }) {
                     Icon(
@@ -210,13 +246,13 @@ fun GameCard(
             .width(200.dp)
             .clickable { onClick() },
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) Color(0xFF1976D2) else Color(0xFF2C2C2C)
+            containerColor = if (isSelected) Color(0xFF0A3A60) else Color(0xFF1E1E1E)
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(10.dp)
     ) {
         Column(
             modifier = Modifier
-                .padding(12.dp)
+                .padding(10.dp)
                 .fillMaxWidth()
         ) {
             Row(
@@ -224,40 +260,40 @@ fun GameCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = game.homeTeam,
+                    text = game.awayTeamName,
                     style = MaterialTheme.typography.titleSmall.copy(color = Color.White),
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = game.awayTeam,
+                    text = "@",
+                    style = MaterialTheme.typography.titleSmall.copy(color = Color.Gray)
+                )
+                Text(
+                    text = game.homeTeamName,
                     style = MaterialTheme.typography.titleSmall.copy(color = Color.White),
                     fontWeight = FontWeight.Bold
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = game.homeScore.toString(),
-                    style = MaterialTheme.typography.headlineSmall.copy(color = Color(0xFF00B4D8)),
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "-",
-                    style = MaterialTheme.typography.headlineSmall.copy(color = Color.Gray)
-                )
-                Text(
-                    text = game.awayScore.toString(),
-                    style = MaterialTheme.typography.headlineSmall.copy(color = Color(0xFF00B4D8)),
+                    text = "${game.awayScore} - ${game.homeScore}",
+                    style = MaterialTheme.typography.titleMedium.copy(color = Color(0xFF00B4D8)),
                     fontWeight = FontWeight.Bold
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = game.quarterStatus,
-                style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFFB0B0B0))
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = if (game.gameStatus == 2) Color(0xFF28A745) else Color(0xFFAAAAAA),
+                    fontWeight = FontWeight.SemiBold
+                ),
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
         }
     }
@@ -268,10 +304,23 @@ fun BetCard(
     bet: BetEntity,
     onRemove: () -> Unit
 ) {
+    val borderColor = when {
+        bet.isWon -> Color(0xFF28A745)
+        bet.isLost -> Color(0xFFDC3545)
+        else -> Color(0xFF333333)
+    }
+
+    val progressColor = when {
+        bet.isWon -> Color(0xFF28A745)
+        bet.isLost -> Color(0xFFDC3545)
+        else -> Color(0xFF00B4D8)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2C2C)),
-        shape = RoundedCornerShape(12.dp)
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        shape = RoundedCornerShape(10.dp)
     ) {
         Column(
             modifier = Modifier
@@ -285,7 +334,7 @@ fun BetCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
                         text = bet.playerName,
@@ -294,15 +343,17 @@ fun BetCard(
                     )
                     Text(
                         text = "#${bet.jersey}",
-                        style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFFB0B0B0))
+                        style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFAAAAAA))
                     )
                     Text(
                         text = bet.playerTeam,
-                        style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF00B4D8)),
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = Color(0xFF00B4D8),
+                            fontWeight = FontWeight.Bold
+                        )
                     )
                 }
-                IconButton(onClick = onRemove) {
+                IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Sil",
@@ -311,7 +362,7 @@ fun BetCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -319,37 +370,40 @@ fun BetCard(
             ) {
                 Text(
                     text = "${bet.stat} • ${bet.type}",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFFB0B0B0))
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = if (bet.type == "ÜST") Color(0xFF28A745) else Color(0xFFDC3545),
+                        fontWeight = FontWeight.Bold
+                    )
                 )
                 Text(
-                    text = "Hedef: ${bet.target}",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFF00B4D8))
+                    text = "${bet.current} / ${bet.target} (%${bet.percentage()})",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            LinearProgressIndicator(
+                progress = (bet.percentage.coerceIn(0.0, 100.0) / 100.0).toFloat(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = progressColor,
+                trackColor = Color(0xFF333333)
+            )
+
+            if (bet.isWon || bet.isLost) {
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "${bet.current} / ${bet.target} (${bet.percentage}%)",
-                    style = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFB0B0B0))
-                )
-                LinearProgressIndicator(
-                    progress = bet.percentage.coerceIn(0.0, 100.0) / 100f,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(6.dp)
-                        .padding(start = 8.dp),
-                    color = when {
-                        bet.isWon -> Color(0xFF28A745)
-                        bet.isLost -> Color(0xFFDC3545)
-                        else -> Color(0xFF00B4D8)
-                    },
-                    trackColor = Color(0xFF444444)
+                    text = if (bet.isWon) "🎉 BAREM GELDİ (KAZANDI)" else "❌ BAREM AŞILDI (KAYBETTİ)",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = progressColor,
+                        fontWeight = FontWeight.Bold
+                    )
                 )
             }
         }
@@ -370,227 +424,195 @@ fun AddBetDialog(
     var targetValue by remember { mutableStateOf("") }
     var typeValue by remember { mutableStateOf("ÜST") }
 
+    var expandedGameDropdown by remember { mutableStateOf(false) }
+    var expandedPlayerDropdown by remember { mutableStateOf(false) }
+    var expandedStatDropdown by remember { mutableStateOf(false) }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF1F1F1F)
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFF1E1E1E)
         ) {
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
+                    .padding(18.dp)
                     .fillMaxWidth()
             ) {
                 Text(
                     text = "➕ Yeni Bahis Ekle",
-                    style = MaterialTheme.typography.titleLarge.copy(color = Color.White),
+                    style = MaterialTheme.typography.titleMedium.copy(color = Color.White),
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    modifier = Modifier.padding(bottom = 12.dp)
                 )
 
-                // Maç seçimi
-                Text(
-                    text = "Maç:",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFFB0B0B0)),
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
+                // 1. Maç Seçimi
                 Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = selectedGame?.let { "${it.awayTeamName} @ ${it.homeTeamName}" } ?: "Maç Seçiniz",
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { expandedGameDropdown = true },
+                        enabled = false,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = Color.White,
+                            disabledBorderColor = Color(0xFF444444)
+                        )
+                    )
                     DropdownMenu(
-                        expanded = selectedGame == null,
-                        onDismissRequest = { },
-                        modifier = Modifier.fillMaxWidth()
+                        expanded = expandedGameDropdown,
+                        onDismissRequest = { expandedGameDropdown = false }
                     ) {
                         games.forEach { game ->
                             DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = "${game.homeTeam} vs ${game.awayTeam}",
-                                        color = Color.White
-                                    )
-                                },
+                                text = { Text("${game.awayTeamName} @ ${game.homeTeamName} (${game.quarterStatus})") },
                                 onClick = {
                                     selectedGame = game
+                                    selectedPlayer = null
+                                    expandedGameDropdown = false
                                     onGameSelected(game)
                                 }
                             )
                         }
                     }
-                    OutlinedTextField(
-                        value = selectedGame?.let { "${it.homeTeam} vs ${it.awayTeam}" } ?: "",
-                        onValueChange = { },
-                        readOnly = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Seçili Maç", color = Color(0xFFB0B0B0)) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF00B4D8),
-                            unfocusedBorderColor = Color(0xFF444444),
-                            focusedLabelColor = Color(0xFF00B4D8),
-                            unfocusedLabelColor = Color(0xFFB0B0B0)
-                        )
-                    )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Oyuncu seçimi
-                Text(
-                    text = "Oyuncu:",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFFB0B0B0)),
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
+                // 2. Oyuncu Seçimi
                 Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = selectedPlayer?.let { "#${it.jersey} ${it.name}" } ?: "Oyuncu Seçiniz",
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { if (selectedGame != null) expandedPlayerDropdown = true },
+                        enabled = false,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = Color.White,
+                            disabledBorderColor = Color(0xFF444444)
+                        )
+                    )
                     DropdownMenu(
-                        expanded = selectedPlayer == null,
-                        onDismissRequest = { },
-                        modifier = Modifier.fillMaxWidth()
+                        expanded = expandedPlayerDropdown,
+                        onDismissRequest = { expandedPlayerDropdown = false }
                     ) {
-                        players.forEach { player ->
+                        if (players.isEmpty()) {
                             DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = "${player.name} (#${player.jersey}) - ${player.team}",
-                                        color = Color.White
-                                    )
-                                },
-                                onClick = { selectedPlayer = player }
+                                text = { Text("Oyuncu listesi yükleniyor...") },
+                                onClick = { expandedPlayerDropdown = false }
+                            )
+                        } else {
+                            players.forEach { player ->
+                                DropdownMenuItem(
+                                    text = { Text("#${player.jersey} ${player.name}") },
+                                    onClick = {
+                                        selectedPlayer = player
+                                        expandedPlayerDropdown = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // 3. İstatistik Türü
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = selectedStat,
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { expandedStatDropdown = true },
+                        enabled = false,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = Color(0xFF00B4D8),
+                            disabledBorderColor = Color(0xFF444444)
+                        )
+                    )
+                    DropdownMenu(
+                        expanded = expandedStatDropdown,
+                        onDismissRequest = { expandedStatDropdown = false }
+                    ) {
+                        BetRepository.STAT_OPTIONS.forEach { stat ->
+                            DropdownMenuItem(
+                                text = { Text(stat) },
+                                onClick = {
+                                    selectedStat = stat
+                                    expandedStatDropdown = false
+                                }
                             )
                         }
                     }
-                    OutlinedTextField(
-                        value = selectedPlayer?.let { "${it.name} (#${it.jersey})" } ?: "",
-                        onValueChange = { },
-                        readOnly = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Seçili Oyuncu", color = Color(0xFFB0B0B0)) },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF00B4D8),
-                            unfocusedBorderColor = Color(0xFF444444),
-                            focusedLabelColor = Color(0xFF00B4D8),
-                            unfocusedLabelColor = Color(0xFFB0B0B0)
-                        )
-                    )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // İstatistik türü
-                Text(
-                    text = "İstatistik Türü:",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFFB0B0B0)),
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                DropdownMenu(
-                    expanded = false,
-                    onDismissRequest = { },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    BetRepository.STAT_OPTIONS.forEach { stat ->
-                        DropdownMenuItem(
-                            text = { Text(stat, color = Color.White) },
-                            onClick = { selectedStat = stat }
-                        )
-                    }
-                }
-                OutlinedTextField(
-                    value = selectedStat,
-                    onValueChange = { },
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Seçili İstatistik", color = Color(0xFFB0B0B0)) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF00B4D8),
-                        unfocusedBorderColor = Color(0xFF444444),
-                        focusedLabelColor = Color(0xFF00B4D8),
-                        unfocusedLabelColor = Color(0xFFB0B0B0)
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Hedef
-                Text(
-                    text = "Hedef Değer:",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFFB0B0B0)),
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                OutlinedTextField(
-                    value = targetValue,
-                    onValueChange = { if (it.isEmpty() || it.matches(Regex("\\d*\\.?\\d*"))) targetValue = it },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Hedef", color = Color(0xFFB0B0B0)) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF00B4D8),
-                        unfocusedBorderColor = Color(0xFF444444),
-                        focusedLabelColor = Color(0xFF00B4D8),
-                        unfocusedLabelColor = Color(0xFFB0B0B0)
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // ÜST / ALT
-                Text(
-                    text = "Üst/Alt:",
-                    style = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFFB0B0B0)),
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
+                // 4. Hedef Barem & ÜST/ALT
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Button(
-                        onClick = { typeValue = "ÜST" },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (typeValue == "ÜST") Color(0xFF00B4D8) else Color(0xFF444444)
-                        )
-                    ) {
-                        Text("ÜST", color = Color.White)
-                    }
-                    Button(
-                        onClick = { typeValue = "ALT" },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (typeValue == "ALT") Color(0xFF00B4D8) else Color(0xFF444444)
-                        )
-                    ) {
-                        Text("ALT", color = Color.White)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Butonlar
-                Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = targetValue,
+                        onValueChange = { targetValue = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Barem (örn: 24.5)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        )
+                    )
+
+                    Button(
+                        onClick = { typeValue = if (typeValue == "ÜST") "ALT" else "ÜST" },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (typeValue == "ÜST") Color(0xFF28A745) else Color(0xFFDC3545)
+                        )
+                    ) {
+                        Text(typeValue, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 5. Butonlar
+                Row(
+                    horizontalArrangement = Arrangement.End,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("İptal", color = Color(0xFFB0B0B0))
+                    TextButton(onClick = onDismiss) {
+                        Text("İptal", color = Color(0xFFAAAAAA))
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
-                            if (selectedGame != null && selectedPlayer != null && targetValue.isNotEmpty()) {
+                            val target = targetValue.toDoubleOrNull()
+                            if (selectedGame != null && selectedPlayer != null && target != null) {
                                 onAdd(
-                                    gameId = selectedGame!!.id,
-                                    playerId = selectedPlayer!!.id,
-                                    pName = selectedPlayer!!.name,
-                                    pTeam = selectedPlayer!!.team,
-                                    jersey = selectedPlayer!!.jersey,
-                                    stat = selectedStat,
-                                    target = targetValue.toDoubleOrNull() ?: 0.0,
-                                    type = typeValue
+                                    selectedGame!!.id,
+                                    selectedPlayer!!.id,
+                                    selectedPlayer!!.name,
+                                    selectedGame!!.awayTeamName,
+                                    selectedPlayer!!.jersey,
+                                    selectedStat,
+                                    target,
+                                    typeValue
                                 )
                             }
                         },
-                        modifier = Modifier.weight(1f),
-                        enabled = selectedGame != null && selectedPlayer != null && targetValue.isNotEmpty()
+                        enabled = selectedGame != null && selectedPlayer != null && targetValue.toDoubleOrNull() != null,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00B4D8))
                     ) {
-                        Text("Kaydet", color = Color.White)
+                        Text("Kupona Ekle", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

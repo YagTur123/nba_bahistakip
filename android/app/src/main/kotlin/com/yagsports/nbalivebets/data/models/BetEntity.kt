@@ -11,17 +11,21 @@ data class BetEntity(
     val playerName: String,
     val playerTeam: String,
     val jerseyNumber: String = "0",
-    val statKey: String,
+    val statKey: String = "",
     val statDisplay: String,
     val target: Double,
-    val betType: String, // 'ÜST' veya 'ALT'
+    val betType: String, // "ÜST" veya "ALT"
     val currentValue: Int = 0,
     val isWon: Boolean = false,
     val isLost: Boolean = false,
     val lastUpdated: Long = System.currentTimeMillis()
 ) {
-    fun percentage(): Int = Math.min(((currentValue / target) * 100).toInt(), 100)
-
+    val jersey: String get() = jerseyNumber
+    val stat: String get() = statDisplay
+    val type: String get() = betType
+    val current: Int get() = currentValue
+    val percentage: Double get() = if (target > 0) Math.min((currentValue.toDouble() / target) * 100.0, 100.0) else 0.0
+    fun percentage(): Int = percentage.toInt()
     fun statusText(): String = when {
         isWon -> "KAZANDI"
         isLost -> "KAYBETTİ"

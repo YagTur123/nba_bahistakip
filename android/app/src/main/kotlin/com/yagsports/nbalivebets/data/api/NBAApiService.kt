@@ -26,6 +26,10 @@ data class Game(
     val homeTeam: Team
 ) {
     val id: String get() = gameId
+    val homeScore: Int get() = homeTeam.score
+    val awayScore: Int get() = awayTeam.score
+    val homeTeamName: String get() = homeTeam.teamTricode.ifBlank { homeTeam.teamName }
+    val awayTeamName: String get() = awayTeam.teamTricode.ifBlank { awayTeam.teamName }
 }
 
 data class Team(
@@ -39,10 +43,14 @@ data class Team(
 data class Player(
     val personId: Int,
     val name: String,
-    val jerseyNum: String?,
-    val position: String?,
-    val statistics: Statistics?
-)
+    val jerseyNum: String? = "0",
+    val position: String? = null,
+    val statistics: Statistics? = null,
+    val team: String = ""
+) {
+    val id: Int get() = personId
+    val jersey: String get() = jerseyNum ?: "0"
+}
 
 data class Statistics(
     val points: Int = 0,
